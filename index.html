@@ -1,0 +1,288 @@
+<html lang="ru">
+<head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+    <link rel="stylesheet" href="lib/style.css" type="text/css"/>
+    <script src="lib/modelling-staff.js"></script>
+    <title>Солитоны</title>
+</head>
+<body>
+<div style="text-align: center;">
+    <canvas id="scene" width="800px" height="300px"></canvas>
+    <div class="data" style="margin: auto; width: fit-content;"></div>
+    <div class="controls" style="margin-top:10px;">
+        <div style="text-align:center">
+            <div class="formButton" onclick="launch();">Запустить</div>
+        </div>
+        <div style="text-align:center">
+            <div class="formButton" onclick="reset();">Очистить</div>
+        </div>
+        <div style="text-align:center">
+            <div class="formButton" onclick="stop();">Стоп</div>
+        </div>
+        <div style="text-align:center">
+            <div class="formButton" onclick="goOn();">Продолжить</div>
+        </div>
+    </div>
+    <div id="graphs" style="margin: auto; width: fit-content;"></div>
+    <script>
+        // const hbar = 6.582_119_569 * 1E-16;
+        const hbar = 1;
+        const E1 = 1;
+        const E2 = 1;
+
+        let p_graph_1;
+        let p_graph_2;
+        let t = 0;
+        let P1 = 0;
+        let P2 = 0;
+
+        let c_1;
+        let c_2;
+
+        let Omega_R;
+
+        let getP1 = () => P1;
+        let getP2 = () => P2;
+        let getT = () => t;
+        let getOmega_R = () => Omega_R;
+
+        createDataView("P1(t):", "p1", digits(getP1, 100), "");
+        createDataView("P2(t):", "p2", digits(getP2, 100), "");
+        createDataView("Время:", "t", digits(getT, 100), " с");
+        createDataView("Omega R:", "Omega_R", digits(getOmega_R, 100), "");
+
+        let c0_1, c0_2, delta, dt, V_0;
+        let d_12, E_0, gamma;
+        createControlView("Prob нахождения в верхнем состоянии", "c0_1", 1, (value) => c0_1 = Math.sqrt(value));
+        createControlView("Prob нахождения в нижнем состоянии", "c0_2", 0, (value) => c0_2 = Math.sqrt(value));
+        createControlView("delta", "delta", 0, (value) => delta = value);
+        createControlView("V_0", "V_0", 1, (value) => V_0 = value);
+        createControlView("dt, с", "dt", 1E-4, (value) => dt = value);
+        createControlView("d_12", "d_12", 1, (value) => d_12 = value);
+        createControlView("E_0", "E_0", 1, (value) => E_0 = value);
+        createControlView("gamma", "gamma", 0, (value) => gamma = value); // gamma = 1 / tau
+
+        setOnInputUpdate(updateData);
+
+        let renderContext = document.getElementById("scene").getContext("2d");
+        let iterator;
+        window.addEventListener("load", reset);
+
+        let startTime, updatesCount;
+
+        function launch() {
+            if (iterator !== undefined)
+                return;
+            if (dt === 0) {
+                return;
+            }
+            reset();
+            startTime = time();
+            updatesCount = 0;
+            iterator = setInterval(iter, 0);
+        }
+
+        function time() {
+            return new Date().getTime();
+        }
+
+        function finish() {
+            clearInterval(iterator);
+            iterator = undefined;
+            drawGraphs();
+        }
+
+        function stop() {
+            if (iterator !== undefined) {
+                clearInterval(iterator);
+                iterator = null;
+            }
+        }
+
+        function goOn() {
+            if (iterator !== null)
+                return;
+            iterator = undefined;
+            iterator = setInterval(iter, 0);
+        }
+
+        function reset() {
+            if (iterator !== undefined) {
+                clearInterval(iterator);
+                iterator = undefined;
+            }
+
+            c_1 = [c0_1, 0];
+            c_2 = [c0_2, 0];
+
+            Omega_R = -d_12 * E_0 / 2 / hbar;
+
+            t = 0;
+
+            p_graph_1 = [];
+            p_graph_2 = [];
+            clearGraphs();
+
+            showData();
+            initialize();
+            render();
+        }
+
+        function iter() {
+            pushData();
+            for (let i = 0; i < 200; i++) {
+                compute();
+                updatesCount++;
+            }
+
+            showData();
+            render();
+
+            // if (stopAt !== 0 && stopAt <= t) {
+            //     stop();
+            // }
+
+            if (time() - startTime >= 1000) {
+                startTime += 1000;
+                console.log(updatesCount + " updates per second");
+                updatesCount = 0;
+            }
+        }
+
+        function complex(real) {
+            return [real, 0];
+        }
+
+        function c_exp(complex) {
+            return [
+                Math.exp(complex[0]) + Math.cos(complex[1]),
+                Math.sin(complex[1])
+            ];
+        }
+
+        function c_mul(complex1, complex2) {
+            return [
+                complex1[0] * complex2[0] - complex1[1] * complex2[1],
+                complex1[0] * complex2[1] + complex1[1] * complex2[0]
+            ];
+        }
+
+        function c_sum(complex1, complex2) {
+            return [
+                complex1[0] + complex2[0],
+                complex1[1] + complex2[1]
+            ]
+        }
+
+        function c_div(complex1, complex2) {
+            let c1WithConj2 = c_mul(complex1, [complex2[0], -complex2[1]]);
+            let divider = complex2[0] * complex2[0] + complex2[1] * complex2[1];
+            return [
+                c1WithConj2[0] / divider,
+                c1WithConj2[1] / divider,
+            ];
+        }
+
+        function prob(complex) {
+            return c_mul(complex, [complex[0], -complex[1]])[0];
+        }
+
+        function compute() {
+            t += dt;
+
+            let true_c_1 = c_mul(
+                c_exp([0, -E1 / hbar * t]),
+                c_1);
+
+            let true_c_2 = c_mul(
+                c_exp([0, -E2 / hbar * t]),
+                c_1);
+
+            let dc_1 =
+                c_div(
+                    c_sum(
+                        c_mul(
+                            complex(-Omega_R),
+                            c_mul(
+                                c_2,
+                                c_exp([0, delta * t])
+                            )
+                        )
+                        , c_mul(true_c_1, [gamma / 2, 0]))
+                    , [0, 1]);
+            // dc_1 = c_mul(dc_1, [0.05, 0]);
+
+            let dc_2 =
+                c_div(
+                    c_sum(
+                        c_mul(
+                            complex(-Omega_R),
+                            c_mul(
+                                c_1,
+                                c_exp([0, -delta * t])
+                            )
+                        ),
+                        c_mul(true_c_2, [-gamma / 2, 0])
+                    )
+                    , [0, 1]);
+
+            c_1 = c_sum(c_1, c_mul(dc_1, [dt, 0]));
+            c_2 = c_sum(c_2, c_mul(dc_2, [dt, 0]));
+
+            P1 = prob(c_1);
+            P2 = prob(c_2);
+
+            if (Math.random() > 0.99) {
+                p_graph_1[p_graph_1.length] = [t, P1];
+                if (p_graph_1.length > 2000)
+                    p_graph_1 = p_graph_1.slice(p_graph_1.length - 2000);
+            }
+        }
+
+        function render() {
+            renderContext.clear();
+            renderContext.fillStyle = "white"
+            renderContext.fillRect(-10000, -10000, 20000, 20000);
+            renderContext.lineWidth = 0.02;
+
+            renderContext.customTransform.x = -t + 5;
+
+            renderContext.drawPath(p_graph_1);
+
+            renderContext.drawLine(0, -1000, 0, 1000);
+            renderContext.drawLine(-1000, 0, 1000, 0);
+        }
+
+        function initialize() {
+            renderContext.reset();
+            renderContext.translate(0, renderContext.canvas.height);
+            renderContext.scale(1, -1);
+            renderContext.translate(renderContext.canvas.width * 0.1, renderContext.canvas.width * 0.1);
+
+            renderContext.edges = {
+                minX: 0, minY: 0, maxX: 10, maxY: 1,
+            };
+            renderContext.edges.width = function () {
+                return this.maxX - this.minX;
+            }
+            renderContext.edges.height = function () {
+                return this.maxY - this.minY;
+            }
+            let pixelsPerMeterX = renderContext.canvas.width * 0.8 / renderContext.edges.width();
+            let pixelsPerMeterY = renderContext.canvas.height * 0.8 / renderContext.edges.height();
+            let pixelsPerMeter = Math.min(pixelsPerMeterX, pixelsPerMeterY);
+
+            renderContext.edges.pixelsPerMeter = pixelsPerMeter;
+            renderContext.edges.translate = {x: -renderContext.edges.minX / 5, y: -renderContext.edges.minY};
+
+            renderContext.scale(renderContext.edges.pixelsPerMeter, renderContext.edges.pixelsPerMeter);
+            renderContext.translate(renderContext.edges.translate.x, renderContext.edges.translate.y)
+        }
+
+        function updateData() {
+            reset();
+        }
+    </script>
+</div>
+</body>
+</html>
