@@ -52,12 +52,10 @@
         createDataView("Omega R:", "Omega_R", digits(getOmega_R, 100), "");
         createDataView("Omega 0:", "Omega_0", digits(getOmega_0, 100), "");
 
-        let c0_1, c0_2, delta, dt, V_0;
+        let c0_1, c0_2, delta, dt;
         let d_12, E_0, E_1, E_2, gamma, Omega;
         createControlView("Prob нахождения в верхнем состоянии", "c0_1", 1, (value) => c0_1 = Math.sqrt(value));
         createControlView("Prob нахождения в нижнем состоянии", "c0_2", 0, (value) => c0_2 = Math.sqrt(value));
-        // createControlView("delta", "delta", 0, (value) => delta = value);
-        createControlView("V_0", "V_0", 1, (value) => V_0 = value);
         createControlView("dt, с", "dt", 1E-4, (value) => dt = value);
         createControlView("Omega", "Omega", 0.1, (value) => Omega = value);
         createControlView("d_12", "d_12", 1, (value) => d_12 = value);
@@ -167,11 +165,19 @@
             ];
         }
 
-        function c_mul(complex1, complex2) {
-            return [
-                complex1[0] * complex2[0] - complex1[1] * complex2[1],
-                complex1[0] * complex2[1] + complex1[1] * complex2[0]
-            ];
+        function c_mul(complex1, complex2, complex3, complex4) {
+            if (complex4 !== undefined) {
+                return c_mul(c_mul(c_mul(complex1, complex2), complex3), complex4);
+            } else if (complex3 !== undefined) {
+                return c_mul(c_mul(complex1, complex2), complex3);
+            } else if (complex2 !== undefined) {
+                return [
+                    complex1[0] * complex2[0] - complex1[1] * complex2[1],
+                    complex1[0] * complex2[1] + complex1[1] * complex2[0]
+                ];
+            } else {
+                return complex1;
+            }
         }
 
         function c_sum(complex1, complex2) {
@@ -191,31 +197,21 @@
         }
 
         function prob(complex) {
-            return c_mul(complex, [complex[0], -complex[1]])[0];
+            return Math.pow(complex[0], 2) + Math.pow(complex[1], 2);
         }
 
         function compute() {
             t += dt;
-
-            let true_c_1 = c_mul(
-                c_exp([0, -E_1 / hbar * t]),
-                c_1);
-
-            let true_c_2 = c_mul(
-                c_exp([0, -E_2 / hbar * t]),
-                c_1);
 
             let dc_1 =
                 c_div(
                     c_sum(
                         c_mul(
                             complex(-Omega_R),
-                            c_mul(
-                                c_2,
-                                c_exp([0, delta * t])
-                            )
+                            c_2,
+                            c_exp([0, -delta * t])
                         )
-                        , c_mul(c_1, [0, -gamma / 2]))
+                        , c_mul(c_1, [Omega_0, -gamma / 2]))
                     , [0, 1]);
 
             let dc_2 =
@@ -223,12 +219,10 @@
                     c_sum(
                         c_mul(
                             complex(-Omega_R),
-                            c_mul(
-                                c_1,
-                                c_exp([0, -delta * t])
-                            )
+                            c_1,
+                            c_exp([0, -delta * t])
                         ),
-                        c_mul(c_2, [0, -gamma / 2])
+                        c_mul(c_2, [Omega_0, -gamma / 2])
                     )
                     , [0, 1]);
 
@@ -240,9 +234,10 @@
 
             if (Math.random() > 0.99) {
                 p_graph_1[p_graph_1.length] = [t, P1];
+                p_graph_2[p_graph_2.length] = [t, P2];
+
                 if (p_graph_1.length > 2000)
                     p_graph_1 = p_graph_1.slice(p_graph_1.length - 2000);
-                p_graph_2[p_graph_2.length] = [t, P2];
                 if (p_graph_2.length > 2000)
                     p_graph_2 = p_graph_2.slice(p_graph_2.length - 2000);
             }
