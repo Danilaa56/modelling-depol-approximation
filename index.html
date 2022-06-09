@@ -8,26 +8,17 @@
 <body>
 <div style="text-align: center;">
     <canvas id="scene" width="800px" height="300px"></canvas>
-    <div class="data" style="margin: auto; width: fit-content;"></div>
-    <div class="controls" style="margin-top:10px;">
-        <div style="text-align:center">
-            <div class="formButton" onclick="launch();">Запустить</div>
-        </div>
-        <div style="text-align:center">
-            <div class="formButton" onclick="reset();">Очистить</div>
-        </div>
-        <div style="text-align:center">
-            <div class="formButton" onclick="stop();">Стоп</div>
-        </div>
-        <div style="text-align:center">
-            <div class="formButton" onclick="goOn();">Продолжить</div>
+    <div class="data"></div>
+    <div class="inputs">
+        <div class="buttons">
+            <div onclick="launch();">Запустить</div>
+            <div onclick="reset();">Очистить</div>
+            <div onclick="stop();">Приостановить</div>
+            <div onclick="goOn();">Продолжить</div>
         </div>
     </div>
     <div id="graphs" style="margin: auto; width: fit-content;"></div>
     <script>
-        // const hbar = 6.582_119_569 * 1E-16;
-        const hbar = 1;
-
         let p_graph_1;
         let p_graph_2;
         let t = 0;
@@ -43,9 +34,9 @@
         let getP2 = () => P2;
         let getT = () => t;
 
-        createDataView("P1(t):", "p1", digits(getP1, 100), "");
-        createDataView("P2(t):", "p2", digits(getP2, 100), "");
-        createDataView("Время:", "t", digits(getT, 100), " с");
+        createDataView("P1(t)", "p1", digits(getP1, 100), "");
+        createDataView("P2(t)", "p2", digits(getP2, 100), "");
+        createDataView("Время", "t", digits(getT, 100), " с");
 
         let c0_1, c0_2, delta, dt, gamma;
         createControlView("Prob нахождения в верхнем состоянии", "c0_1", 1, (value) => c0_1 = Math.sqrt(value));
@@ -113,7 +104,6 @@
             t = 0;
 
             p_graph_1 = [];
-            p_graph_1.last = () => this[this.length - 1];
             p_graph_2 = [];
             clearGraphs();
 
@@ -241,8 +231,6 @@
 
         function render() {
             renderContext.clear();
-            renderContext.fillStyle = "white"
-            renderContext.fillRect(-10000, -10000, 20000, 20000);
             renderContext.lineWidth = 0.02;
 
             renderContext.customTransform.x = -t + 5;
@@ -250,7 +238,6 @@
             renderContext.drawPath(p_graph_1);
             renderContext.strokeStyle = "#77f";
             renderContext.drawPath(p_graph_2);
-
 
             renderContext.strokeStyle = "#000";
 
@@ -266,13 +253,13 @@
 
             renderContext.edges = {
                 minX: 0, minY: 0, maxX: 10, maxY: 1,
+                width: function () {
+                    return this.maxX - this.minX
+                },
+                height: function () {
+                    return this.maxY - this.minY
+                }
             };
-            renderContext.edges.width = function () {
-                return this.maxX - this.minX;
-            }
-            renderContext.edges.height = function () {
-                return this.maxY - this.minY;
-            }
             let pixelsPerMeterX = renderContext.canvas.width * 0.8 / renderContext.edges.width();
             let pixelsPerMeterY = renderContext.canvas.height * 0.8 / renderContext.edges.height();
             renderContext.edges.pixelsPerMeter = Math.min(pixelsPerMeterX, pixelsPerMeterY);
